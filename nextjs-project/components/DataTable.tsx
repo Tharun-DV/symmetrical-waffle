@@ -25,6 +25,8 @@ interface DataTableProps<T> {
   columns: Column<T>[];
   onEdit?: (item: T) => void;
   onDelete?: (item: T) => void;
+  onView?: (item: T) => void;
+  viewLabel?: string;
   searchPlaceholder?: string;
   className?: string;
 }
@@ -34,6 +36,8 @@ export default function DataTable<T extends { id: number | string }>({
   columns,
   onEdit,
   onDelete,
+  onView,
+  viewLabel = "View",
   searchPlaceholder = "Search records...",
   className,
 }: DataTableProps<T>) {
@@ -122,7 +126,7 @@ export default function DataTable<T extends { id: number | string }>({
                     )}
                   </th>
                 ))}
-                {(onEdit || onDelete) && (
+                {(onEdit || onDelete || onView) && (
                   <th className="px-6 py-4 text-xs font-bold uppercase tracking-widest text-slate-400">Actions</th>
                 )}
               </tr>
@@ -135,9 +139,17 @@ export default function DataTable<T extends { id: number | string }>({
                       {column.render ? column.render(item) : (item as any)[column.key]}
                     </td>
                   ))}
-                  {(onEdit || onDelete) && (
+                  {(onEdit || onDelete || onView) && (
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-2">
+                        {onView && (
+                          <button
+                            onClick={() => onView(item)}
+                            className="rounded-lg p-1.5 text-slate-400 hover:bg-indigo-500/10 hover:text-indigo-400 transition-all"
+                          >
+                            {viewLabel}
+                          </button>
+                        )}
                         {onEdit && (
                           <button
                             onClick={() => onEdit(item)}
@@ -161,7 +173,7 @@ export default function DataTable<T extends { id: number | string }>({
               ))}
               {paginatedData.length === 0 && (
                 <tr>
-                  <td colSpan={columns.length + (onEdit || onDelete ? 1 : 0)} className="px-6 py-12 text-center text-slate-500">
+                  <td colSpan={columns.length + (onEdit || onDelete || onView ? 1 : 0)} className="px-6 py-12 text-center text-slate-500">
                     No records found
                   </td>
                 </tr>

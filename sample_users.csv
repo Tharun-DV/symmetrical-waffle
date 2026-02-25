@@ -1,0 +1,6 @@
+username,email,password,full_name,department,role,status,phone
+john_doe,john.doe@company.com,Password123!,John Doe,Engineering,user,active,+1234567890
+jane_smith,jane.smith@company.com,Password456!,Jane Smith,Marketing,manager,active,+9876543210
+bob_wilson,bob.wilson@company.com,Password789!,Bob Wilson,IT,admin,active,+5551234567
+alice_brown,alice.brown@company.com,Password321!,Alice Brown,Finance,viewer,inactive,+4445556666
+charlie_davis,charlie.davis@company.com,Password654!,Charlie Davis,Sales,user,active,+7778889999

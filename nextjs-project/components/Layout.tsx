@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { 
   LayoutDashboard, 
   Server, 
@@ -11,16 +11,21 @@ import {
   Menu, 
   X, 
   Bell, 
-  Search,
   Settings,
   Shield,
   Zap,
   Activity,
   HardDrive,
-  AlertTriangle
+  AlertTriangle,
+  Users,
+  BarChart3,
+  LogOut,
+  User as UserIcon,
+  ChevronDown
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
+import { isAuthenticated as checkAuthFn, getStoredUser as getUserFn, authAPI as authApiObj, User as UserType } from '@/lib/api';
 
 interface SidebarItemProps {
   href: string;
@@ -52,20 +57,67 @@ function SidebarItem({ href, icon: Icon, label, active }: SidebarItemProps) {
   );
 }
 
-export default function Layout({ children }: { children: React.ReactNode }) {
+export default function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isAuth, setIsAuth] = useState(false);
+  const [user, setUser] = useState<UserType | null>(null);
+  const [showUserMenu, setShowUserMenu] = useState(false);
+
+  const isLoginPage = pathname === '/login';
+
+  useEffect(() => {
+    const checkAuthStatus = () => {
+      const authenticated = checkAuthFn();
+      const storedUser = getUserFn();
+      setIsAuth(authenticated);
+      setUser(storedUser);
+
+      if (!authenticated && pathname !== '/login') {
+        router.push('/login');
+      }
+    };
+
+    checkAuthStatus();
+  }, [pathname, router]);
+
+  const handleLogout = async () => {
+    try {
+      await authApiObj.logout();
+    } catch {
+      // Ignore logout errors
+    }
+    router.push('/login');
+  };
 
   const navigation = [
     { href: '/', icon: LayoutDashboard, label: 'Dashboard' },
     { href: '/servers', icon: Server, label: 'Servers' },
     { href: '/licenses', icon: FileBadge, label: 'Licenses' },
+    { href: '/licenses/reports', icon: BarChart3, label: 'Reports' },
+    { href: '/users', icon: Users, label: 'Users' },
     { href: '/compliance', icon: ShieldCheck, label: 'Compliance' },
     { href: '/infrastructure', icon: HardDrive, label: 'Infrastructure' },
     { href: '/monitoring', icon: Activity, label: 'Monitoring' },
     { href: '/alerts', icon: AlertTriangle, label: 'Alerts' },
   ];
 
+  // Show login page without sidebar
+  if (isLoginPage) {
+    return (
+      <div className="min-h-screen bg-slate-950">
+        {children}
+      </div>
+    );
+  }
+
+  // Not authenticated and not on login - redirect
+  if (!isAuth) {
+    return null;
+  }
+
+  // Authenticated user - show full layout with sidebar
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 selection:bg-cyan-500/30">
       {/* Decorative background elements */}
@@ -145,10 +197,54 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 <button className="rounded-full p-2 text-slate-400 hover:bg-slate-800 hover:text-slate-100 transition-colors">
                   <Bell size={20} />
                 </button>
-                <button className="rounded-full p-2 text-slate-400 hover:bg-slate-800 hover:text-slate-100 transition-colors">
-                  <Settings size={20} />
-                </button>
-                <div className="ml-2 h-8 w-8 rounded-full bg-gradient-to-tr from-cyan-500 to-indigo-500 border border-slate-700 shadow-inner" />
+                
+                <div className="relative">
+                  <button 
+                    onClick={() => setShowUserMenu(!showUserMenu)}
+                    className="flex items-center gap-2 rounded-full p-2 text-slate-400 hover:bg-slate-800 hover:text-slate-100 transition-colors"
+                  >
+                    <div className="h-8 w-8 rounded-full bg-gradient-to-tr from-cyan-500 to-indigo-500 border border-slate-700 shadow-inner flex items-center justify-center">
+                      <UserIcon size={16} className="text-white" />
+                    </div>
+                    <ChevronDown size={16} className={cn("transition-transform", showUserMenu && "rotate-180")} />
+                  </button>
+
+                  <AnimatePresence>
+                    {showUserMenu && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: 10 }}
+                        className="absolute right-0 mt-2 w-56 bg-slate-900 border border-slate-800 rounded-xl shadow-xl overflow-hidden"
+                      >
+                        <div className="p-3 border-b border-slate-800">
+                          <p className="font-medium text-white">{user?.full_name || user?.username}</p>
+                          <p className="text-sm text-slate-400">{user?.email}</p>
+                          <span className="inline-block mt-1 px-2 py-0.5 text-xs font-medium bg-cyan-500/20 text-cyan-400 rounded capitalize">
+                            {user?.role}
+                          </span>
+                        </div>
+                        <div className="p-2">
+                          <Link
+                            href="/profile"
+                            onClick={() => setShowUserMenu(false)}
+                            className="flex items-center gap-3 px-3 py-2 text-sm text-slate-300 hover:bg-slate-800 rounded-lg transition-colors"
+                          >
+                            <Settings size={16} />
+                            Settings
+                          </Link>
+                          <button
+                            onClick={handleLogout}
+                            className="flex w-full items-center gap-3 px-3 py-2 text-sm text-red-400 hover:bg-slate-800 rounded-lg transition-colors"
+                          >
+                            <LogOut size={16} />
+                            Sign Out
+                          </button>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
               </div>
             </div>
           </div>

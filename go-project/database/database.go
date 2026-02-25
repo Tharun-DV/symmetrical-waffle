@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 
 	_ "github.com/mattn/go-sqlite3"
 )
@@ -43,6 +44,11 @@ func Connect() error {
 	// schema.sql uses IF NOT EXISTS, so this is safe
 	if err := initializeSchema(); err != nil {
 		return fmt.Errorf("failed to initialize schema: %w", err)
+	}
+
+	// Run migrations
+	if err := runMigrations(); err != nil {
+		return fmt.Errorf("failed to run migrations: %w", err)
 	}
 
 	// Explicitly create monitors tables to ensure they exist (fallback for schema parsing issues)
@@ -94,6 +100,77 @@ func initializeSchema() error {
 	// Execute schema
 	if _, err := DB.Exec(string(schema)); err != nil {
 		return fmt.Errorf("failed to execute schema: %w", err)
+	}
+
+	return nil
+}
+
+func runMigrations() error {
+	migrationsDir := filepath.Join("database", "migrations")
+
+	// Check if migrations directory exists
+	if _, err := os.Stat(migrationsDir); os.IsNotExist(err) {
+		return nil
+	}
+
+	// Read migration files
+	entries, err := os.ReadDir(migrationsDir)
+	if err != nil {
+		return fmt.Errorf("failed to read migrations directory: %w", err)
+	}
+
+	// Filter SQL files and sort by name
+	var migrationFiles []string
+	for _, entry := range entries {
+		if !entry.IsDir() && filepath.Ext(entry.Name()) == ".sql" {
+			migrationFiles = append(migrationFiles, entry.Name())
+		}
+	}
+	sort.Strings(migrationFiles)
+
+	// Create migrations tracking table
+	_, err = DB.Exec(`
+		CREATE TABLE IF NOT EXISTS migrations (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			name TEXT NOT NULL UNIQUE,
+			applied_at DATETIME NOT NULL DEFAULT (datetime('now'))
+		)
+	`)
+	if err != nil {
+		return fmt.Errorf("failed to create migrations table: %w", err)
+	}
+
+	// Apply each migration
+	for _, migrationFile := range migrationFiles {
+		// Check if migration already applied
+		var exists bool
+		err := DB.QueryRow("SELECT EXISTS(SELECT 1 FROM migrations WHERE name = ?)", migrationFile).Scan(&exists)
+		if err != nil {
+			return fmt.Errorf("failed to check migration: %w", err)
+		}
+
+		if exists {
+			continue
+		}
+
+		// Read and apply migration
+		migrationPath := filepath.Join(migrationsDir, migrationFile)
+		migrationSQL, err := os.ReadFile(migrationPath)
+		if err != nil {
+			return fmt.Errorf("failed to read migration %s: %w", migrationFile, err)
+		}
+
+		if _, err := DB.Exec(string(migrationSQL)); err != nil {
+			return fmt.Errorf("failed to apply migration %s: %w", migrationFile, err)
+		}
+
+		// Record migration
+		_, err = DB.Exec("INSERT INTO migrations (name) VALUES (?)", migrationFile)
+		if err != nil {
+			return fmt.Errorf("failed to record migration %s: %w", migrationFile, err)
+		}
+
+		fmt.Printf("Applied migration: %s\n", migrationFile)
 	}
 
 	return nil
